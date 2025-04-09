@@ -279,6 +279,56 @@
         margin-bottom: 8px;
       }
     }
+    
+    /* Landscape mode optimization */
+    @media (max-height: 500px) and (orientation: landscape) {
+      body {
+        padding: 0;
+      }
+      
+      .container {
+        width: 100%;
+        max-width: none;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+      }
+      
+      .video-container {
+        border-radius: 0;
+        height: 100vh;
+      }
+      
+      video {
+        height: 100vh;
+        width: 100%;
+        object-fit: contain;
+      }
+      
+      .custom-controls {
+        padding: 8px 15px;
+      }
+      
+      .progress-container {
+        margin-bottom: 5px;
+        height: 4px;
+      }
+      
+      .control-btn {
+        width: 30px;
+        height: 30px;
+      }
+      
+      .quality-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      
+      .time-display {
+        font-size: 11px;
+        min-width: 65px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -354,16 +404,20 @@
     const progressBar = document.getElementById('progressBar');
     const timeDisplay = document.getElementById('timeDisplay');
     
-    const videoSrc = 'https://ee4ee8c03a26.eu-central-1.playback.live-video.net/api/video/v1/eu-central-1.755921704393.channel.LOohfipmCQDP.m3u8'; // Replace with your HLS stream URL
+    const videoSrc = 'https://ee4ee8c03a26.eu-central-1.playback.live-video.net/api/video/v1/eu-central-1.755921704393.channel.LOohfipmCQDP.m3u8'; // HLS stream URL
     let hls;
     let currentQuality = 'auto';
     let isMobile = window.matchMedia('(max-width: 768px)').matches;
+    let isLandscape = window.matchMedia('(orientation: landscape)').matches;
     let controlsTimeout;
     
     // Initialize HLS
     if (Hls.isSupported()) {
       videoContainer.classList.add('loading');
-      hls = new Hls();
+      hls = new Hls({
+        capLevelToPlayerSize: true, // This helps with mobile performance
+        startLevel: -1 // Start with auto quality
+      });
       hls.loadSource(videoSrc);
       hls.attachMedia(video);
       
@@ -394,6 +448,29 @@
           console.log('Autoplay prevented:', error);
           updatePlayButton();
         });
+      });
+      
+      // Error handling
+      hls.on(Hls.Events.ERROR, function(event, data) {
+        if (data.fatal) {
+          console.error('Fatal error:', data);
+          videoContainer.classList.remove('loading');
+          
+          // Try to recover
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.log('Unrecoverable error');
+              break;
+          }
+        }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Fallback for Safari
@@ -426,13 +503,20 @@
     video.addEventListener('loadedmetadata', updateDuration);
     
     // Show/hide controls
-    video.addEventListener('click', () => {
-      if (video.paused) {
-        video.play();
-      } else {
-        video.pause();
+    video.addEventListener('click', (e) => {
+      e.preventDefault(); // Prevent default to handle both desktop and mobile
+      if (e.detail === 1) { // Single click
+        if (customControls.classList.contains('active')) {
+          if (video.paused) {
+            video.play();
+          } else {
+            video.pause();
+          }
+          updatePlayButton();
+        } else {
+          showControls();
+        }
       }
-      updatePlayButton();
     });
     
     videoContainer.addEventListener('mousemove', showControls);
@@ -443,7 +527,7 @@
     
     // For mobile: Show controls on tap, hide after a delay
     if (isMobile) {
-      video.addEventListener('click', (e) => {
+      video.addEventListener('touchend', (e) => {
         e.preventDefault();
         toggleControls();
       });
@@ -452,6 +536,10 @@
     // Update play button icon
     video.addEventListener('play', updatePlayButton);
     video.addEventListener('pause', updatePlayButton);
+    
+    // Handle orientation change
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
     
     // Functions
     function togglePlay() {
@@ -493,19 +581,28 @@
     }
     
     function toggleFullscreen() {
-      if (!document.fullscreenElement) {
+      if (!document.fullscreenElement && 
+          !document.webkitFullscreenElement && 
+          !document.mozFullScreenElement &&
+          !document.msFullscreenElement) {
+        // Enter fullscreen
         if (videoContainer.requestFullscreen) {
           videoContainer.requestFullscreen();
         } else if (videoContainer.webkitRequestFullscreen) {
           videoContainer.webkitRequestFullscreen();
+        } else if (videoContainer.mozRequestFullScreen) {
+          videoContainer.mozRequestFullScreen();
         } else if (videoContainer.msRequestFullscreen) {
           videoContainer.msRequestFullscreen();
         }
       } else {
+        // Exit fullscreen
         if (document.exitFullscreen) {
           document.exitFullscreen();
         } else if (document.webkitExitFullscreen) {
           document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
         } else if (document.msExitFullscreen) {
           document.msExitFullscreen();
         }
@@ -531,8 +628,11 @@
       const selectedOption = document.querySelector(`[data-quality="${quality}"]`);
       if (selectedOption) {
         selectedOption.classList.add('active');
-        qualityBtn.textContent = quality === 'auto' ? 'Auto Quality' : 
-          `${hls.levels[parseInt(quality)].height}p`;
+        if (quality === 'auto') {
+          qualityBtn.textContent = 'Auto Quality';
+        } else {
+          qualityBtn.textContent = `${hls.levels[parseInt(quality)].height}p`;
+        }
       } else {
         qualityBtn.textContent = 'Auto Quality';
       }
@@ -548,6 +648,8 @@
     }
     
     function updateProgress() {
+      if (isNaN(video.duration)) return;
+      
       const percent = (video.currentTime / video.duration) * 100;
       progressBar.style.width = `${percent}%`;
       
@@ -561,6 +663,8 @@
     }
     
     function updateDuration() {
+      if (isNaN(video.duration)) return;
+      
       const durationMinutes = Math.floor(video.duration / 60);
       const durationSeconds = Math.floor(video.duration % 60);
       timeDisplay.textContent = `00:00 / ${padZero(durationMinutes)}:${padZero(durationSeconds)}`;
@@ -571,8 +675,11 @@
     }
     
     function seek(e) {
-      const percent = (e.offsetX / progressContainer.offsetWidth);
-      video.currentTime = percent * video.duration;
+      const rect = progressContainer.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      if (percent >= 0 && percent <= 1) {
+        video.currentTime = percent * video.duration;
+      }
     }
     
     function showControls() {
@@ -597,10 +704,28 @@
       }
     }
     
-    // Handle window resize
-    window.addEventListener('resize', () => {
+    function handleOrientationChange() {
+      isLandscape = window.matchMedia('(orientation: landscape)').matches;
       isMobile = window.matchMedia('(max-width: 768px)').matches;
-    });
+      
+      // Force video to resize properly
+      setTimeout(() => {
+        if (isLandscape && isMobile) {
+          // Optimize for landscape mobile
+          document.documentElement.style.height = '100%';
+          document.body.style.height = '100%';
+          video.style.objectFit = 'contain';
+        } else {
+          // Reset styles for portrait mode
+          document.documentElement.style.height = '';
+          document.body.style.height = '';
+          video.style.objectFit = '';
+        }
+      }, 100);
+    }
+    
+    // Initial call to set up orientation
+    handleOrientationChange();
     
     // Clean up HLS on page unload
     window.addEventListener('beforeunload', () => {
