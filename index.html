@@ -1,757 +1,143 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Live Stream</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #3498db;
-            --secondary-color: #2ecc71;
-            --accent-color: #f39c12;
-            --dark-bg: #1a1a2e;
-            --light-bg: #16213e;
-            --text-light: #f7f7f7;
-            --text-dim: #a2a2a2;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--dark-bg);
-            color: var(--text-light);
-            line-height: 1.6;
-        }
-        
-        .main-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .match-header {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 20px;
-            background: var(--light-bg);
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-        }
-        
-        .team-info {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            flex: 1;
-        }
-        
-        .team-logo {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid var(--primary-color);
-            background-color: white;
-            margin-bottom: 10px;
-        }
-        
-        .team-name {
-            font-weight: bold;
-            font-size: 18px;
-            margin-bottom: 5px;
-        }
-        
-        .team-score {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--accent-color);
-        }
-        
-        .vs {
-            padding: 0 20px;
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--text-dim);
-        }
-        
-        .match-info {
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        
-        .league-name {
-            font-size: 18px;
-            color: var(--secondary-color);
-            margin-bottom: 5px;
-        }
-        
-        .match-round {
-            font-size: 14px;
-            color: var(--text-dim);
-            margin-bottom: 5px;
-        }
-        
-        .match-status {
-            display: inline-block;
-            background-color: var(--accent-color);
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        
-        .match-result {
-            margin-top: 10px;
-            font-style: italic;
-        }
-        
-        .video-container {
-            position: relative;
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 12px 24px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
-            background-color: #000;
-        }
-        
-        video {
-            width: 100%;
-            display: block;
-        }
-        
-        .custom-controls {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            padding: 20px 15px 15px;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            transition: opacity 0.3s;
-            opacity: 0;
-        }
-        
-        .video-container:hover .custom-controls {
-            opacity: 1;
-        }
-        
-        .control-button {
-            background: none;
-            border: none;
-            color: white;
-            margin-right: 15px;
-            cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(255,255,255,0.2);
-            transition: background-color 0.2s;
-        }
-        
-        .control-button:hover {
-            background-color: var(--primary-color);
-        }
-        
-        .control-button svg {
-            width: 20px;
-            height: 20px;
-        }
-        
-        .progress-container {
-            flex-grow: 1;
-            height: 8px;
-            background-color: rgba(255,255,255,0.2);
-            border-radius: 4px;
-            margin: 0 15px;
-            position: relative;
-            cursor: pointer;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            width: 0;
-            background-color: var(--primary-color);
-            border-radius: 4px;
-            position: relative;
-        }
-        
-        .progress-bar::after {
-            content: '';
-            position: absolute;
-            right: -8px;
-            top: -4px;
-            width: 16px;
-            height: 16px;
-            background-color: white;
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        
-        .progress-container:hover .progress-bar::after {
-            opacity: 1;
-        }
-        
-        .volume-container {
-            display: flex;
-            align-items: center;
-        }
-        
-        .volume-slider {
-            width: 80px;
-            margin-right: 15px;
-            -webkit-appearance: none;
-            height: 4px;
-            border-radius: 2px;
-            background-color: rgba(255,255,255,0.2);
-            outline: none;
-        }
-        
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background-color: white;
-            cursor: pointer;
-        }
-        
-        .time-display {
-            color: white;
-            font-size: 14px;
-            margin-right: 15px;
-        }
-        
-        .quality-menu {
-            position: relative;
-            margin-right: 15px;
-        }
-        
-        .quality-button {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 5px 10px;
-            border-radius: 4px;
-            background-color: rgba(255,255,255,0.2);
-            font-size: 14px;
-        }
-        
-        .quality-options {
-            position: absolute;
-            bottom: 40px;
-            right: 0;
-            background-color: var(--light-bg);
-            border-radius: 8px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-            overflow: hidden;
-            width: 120px;
-            display: none;
-            z-index: 100;
-        }
-        
-        .quality-option {
-            padding: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .quality-option:hover {
-            background-color: rgba(255,255,255,0.1);
-        }
-        
-        .quality-option.active {
-            background-color: var(--primary-color);
-        }
-        
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0,0,0,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-size: 18px;
-            z-index: 10;
-        }
-        
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .match-details {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            gap: 20px;
-        }
-        
-        .detail-card {
-            flex: 1;
-            background: var(--light-bg);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-        }
-        
-        .card-header {
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--secondary-color);
-        }
-        
-        .innings-detail {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .detail-label {
-            color: var(--text-dim);
-        }
-        
-        .detail-value {
-            font-weight: bold;
-        }
-        
-        @media (max-width: 768px) {
-            .match-header {
-                flex-direction: column;
-                gap: 20px;
-            }
-            
-            .vs {
-                padding: 10px 0;
-            }
-            
-            .match-details {
-                flex-direction: column;
-            }
-        }
-    </style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Stream Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #111;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      width: 90%;
+      max-width: 1000px;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+    video {
+      width: 100%;
+      background-color: #000;
+    }
+    .controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: rgba(0,0,0,0.6);
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .video-container:hover .controls {
+      opacity: 1;
+    }
+    .play-btn,
+    .fullscreen-btn,
+    .volume-btn,
+    .quality-select {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .quality-select {
+      background-color: rgba(255,255,255,0.2);
+      color: white;
+      padding: 5px;
+      border-radius: 5px;
+    }
+  </style>
 </head>
 <body>
-    <div class="main-container">
-        <div class="match-info">
-            <div class="league-name" id="leagueName">Indian Premier League</div>
-            <div class="match-round" id="matchRound">Domestic Twenty20(Match 23)</div>
-            <div class="match-status" id="matchStatus">LIVE</div>
-        </div>
-        
-        <div class="match-header">
-            <div class="team-info">
-                <img id="team1Logo" class="team-logo" src="https://pacdn.aoneroom.com/image/2025/03/19/6cd7fa30ade6e81eb3a0c5447d0d86a5.jpg" alt="Gujarat Titans">
-                <div id="team1Name" class="team-name">Gujarat Titans</div>
-                <div id="team1Score" class="team-score">217/6 (20.0)</div>
-            </div>
-            <div class="vs">VS</div>
-            <div class="team-info">
-                <img id="team2Logo" class="team-logo" src="https://pacdn.aoneroom.com/image/2025/03/19/3fe7c1b4d3bd82210ab3849134a85998.jpg" alt="Rajasthan Royals">
-                <div id="team2Name" class="team-name">Rajasthan Royals</div>
-                <div id="team2Score" class="team-score">Yet to bat</div>
-            </div>
-        </div>
-        
-        <div class="match-result" id="matchResult">Gujarat Titans are 217 for 6</div>
-        
-        <div class="video-container">
-            <video id="video" playsinline></video>
-            <div class="custom-controls">
-                <button id="playPauseBtn" class="control-button">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                </button>
-                
-                <div class="progress-container" id="progressContainer">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                
-                <div class="time-display" id="timeDisplay">LIVE</div>
-                
-                <div class="volume-container">
-                    <button id="muteBtn" class="control-button">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                        </svg>
-                    </button>
-                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.1" value="1">
-                </div>
-                
-                <div class="quality-menu">
-                    <button id="qualityBtn" class="quality-button">Auto</button>
-                    <div class="quality-options" id="qualityOptions">
-                        <div class="quality-option active" data-quality="-1">Auto</div>
-                        <div class="quality-option" data-quality="0">Low</div>
-                        <div class="quality-option" data-quality="1">Medium</div>
-                        <div class="quality-option" data-quality="2">High</div>
-                    </div>
-                </div>
-                
-                <button id="fullscreenBtn" class="control-button">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <div id="overlay" class="overlay">
-                <div class="spinner"></div>
-            </div>
-        </div>
-        
-        <div class="match-details">
-            <div class="detail-card">
-                <div class="card-header">Gujarat Titans Innings</div>
-                <div class="innings-detail">
-                    <span class="detail-label">Runs:</span>
-                    <span id="team1Runs" class="detail-value">217</span>
-                </div>
-                <div class="innings-detail">
-                    <span class="detail-label">Wickets:</span>
-                    <span id="team1Wickets" class="detail-value">6</span>
-                </div>
-                <div class="innings-detail">
-                    <span class="detail-label">Overs:</span>
-                    <span id="team1Overs" class="detail-value">20.0</span>
-                </div>
-            </div>
-            
-            <div class="detail-card">
-                <div class="card-header">Rajasthan Royals Innings</div>
-                <div class="innings-detail">
-                    <span class="detail-label">Runs:</span>
-                    <span id="team2Runs" class="detail-value">Yet to bat</span>
-                </div>
-                <div class="innings-detail">
-                    <span class="detail-label">Wickets:</span>
-                    <span id="team2Wickets" class="detail-value">-</span>
-                </div>
-                <div class="innings-detail">
-                    <span class="detail-label">Overs:</span>
-                    <span id="team2Overs" class="detail-value">-</span>
-                </div>
-            </div>
-        </div>
+  <div class="container">
+    <div class="video-container">
+      <video id="video" controls></video>
+      <div class="controls">
+        <button class="play-btn">⏯</button>
+        <button class="volume-btn">🔊</button>
+        <button class="fullscreen-btn">⛶</button>
+        <select class="quality-select" id="qualitySelect">
+          <option value="auto">Auto</option>
+        </select>
+      </div>
     </div>
+  </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Elements
-            const video = document.getElementById('video');
-            const overlay = document.getElementById('overlay');
-            const playPauseBtn = document.getElementById('playPauseBtn');
-            const muteBtn = document.getElementById('muteBtn');
-            const volumeSlider = document.getElementById('volumeSlider');
-            const fullscreenBtn = document.getElementById('fullscreenBtn');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressBar = document.getElementById('progressBar');
-            const qualityBtn = document.getElementById('qualityBtn');
-            const qualityOptions = document.getElementById('qualityOptions');
-            const timeDisplay = document.getElementById('timeDisplay');
-            
-            // Match data
-            const matchData = {
-                "id": "9101189065453568104",
-                "team1": {
-                    "id": "7077946932857372776",
-                    "name": "Gujarat Titans",
-                    "score": "0",
-                    "avatar": "https://pacdn.aoneroom.com/image/2025/03/19/6cd7fa30ade6e81eb3a0c5447d0d86a5.jpg"
-                },
-                "team2": {
-                    "id": "5843960634957777408",
-                    "name": "Rajasthan Royals",
-                    "score": "0",
-                    "avatar": "https://pacdn.aoneroom.com/image/2025/03/19/3fe7c1b4d3bd82210ab3849134a85998.jpg"
-                },
-                "status": "MatchIng",
-                "playType": "PlayTypeVideo",
-                "playPath": "https://ee4ee8c03a26.eu-central-1.playback.live-video.net/api/video/v1/eu-central-1.755921704393.channel.LOohfipmCQDP.m3u8",
-                "startTime": "1744207200000",
-                "endTime": "0",
-                "type": "cricket",
-                "timeDesc": "",
-                "playSource": [],
-                "statusLive": "_UnknownLiveStatus",
-                "league": "Indian Premier League",
-                "liveDeviceId": "",
-                "teamMatchInfo1": {
-                    "score": "0",
-                    "crtRunsScored": "217",
-                    "crtWicketsLost": "6",
-                    "crtOvers": "20",
-                    "crtOversExtraBalls": "0"
-                },
-                "teamMatchInfo2": {
-                    "score": "0",
-                    "crtRunsScored": "",
-                    "crtWicketsLost": "",
-                    "crtOvers": "",
-                    "crtOversExtraBalls": ""
-                },
-                "matchResult": "Gujarat Titans are 217 for 6",
-                "matchRound": "Domestic Twenty20(Match 23)",
-                "replay": [],
-                "highlights": []
-            };
-            
-            // Update match data
-            function updateMatchData() {
-                document.getElementById('leagueName').textContent = matchData.league;
-                document.getElementById('matchRound').textContent = matchData.matchRound;
-                document.getElementById('matchStatus').textContent = matchData.status === "MatchIng" ? "LIVE" : matchData.status;
-                document.getElementById('matchResult').textContent = matchData.matchResult;
-                
-                // Team 1
-                document.getElementById('team1Logo').src = matchData.team1.avatar;
-                document.getElementById('team1Logo').alt = matchData.team1.name;
-                document.getElementById('team1Name').textContent = matchData.team1.name;
-                
-                if (matchData.teamMatchInfo1.crtRunsScored) {
-                    const overs = matchData.teamMatchInfo1.crtOversExtraBalls !== "0" 
-                        ? `${matchData.teamMatchInfo1.crtOvers}.${matchData.teamMatchInfo1.crtOversExtraBalls}` 
-                        : matchData.teamMatchInfo1.crtOvers;
-                    document.getElementById('team1Score').textContent = 
-                        `${matchData.teamMatchInfo1.crtRunsScored}/${matchData.teamMatchInfo1.crtWicketsLost} (${overs})`;
-                    document.getElementById('team1Runs').textContent = matchData.teamMatchInfo1.crtRunsScored;
-                    document.getElementById('team1Wickets').textContent = matchData.teamMatchInfo1.crtWicketsLost;
-                    document.getElementById('team1Overs').textContent = 
-                        matchData.teamMatchInfo1.crtOversExtraBalls !== "0" 
-                            ? `${matchData.teamMatchInfo1.crtOvers}.${matchData.teamMatchInfo1.crtOversExtraBalls}` 
-                            : `${matchData.teamMatchInfo1.crtOvers}.0`;
-                }
-                
-                // Team 2
-                document.getElementById('team2Logo').src = matchData.team2.avatar;
-                document.getElementById('team2Logo').alt = matchData.team2.name;
-                document.getElementById('team2Name').textContent = matchData.team2.name;
-                
-                if (matchData.teamMatchInfo2.crtRunsScored) {
-                    const overs = matchData.teamMatchInfo2.crtOversExtraBalls !== "0" 
-                        ? `${matchData.teamMatchInfo2.crtOvers}.${matchData.teamMatchInfo2.crtOversExtraBalls}` 
-                        : matchData.teamMatchInfo2.crtOvers;
-                    document.getElementById('team2Score').textContent = 
-                        `${matchData.teamMatchInfo2.crtRunsScored}/${matchData.teamMatchInfo2.crtWicketsLost} (${overs})`;
-                    document.getElementById('team2Runs').textContent = matchData.teamMatchInfo2.crtRunsScored;
-                    document.getElementById('team2Wickets').textContent = matchData.teamMatchInfo2.crtWicketsLost;
-                    document.getElementById('team2Overs').textContent = 
-                        matchData.teamMatchInfo2.crtOversExtraBalls !== "0" 
-                            ? `${matchData.teamMatchInfo2.crtOvers}.${matchData.teamMatchInfo2.crtOversExtraBalls}` 
-                            : (matchData.teamMatchInfo2.crtOvers ? `${matchData.teamMatchInfo2.crtOvers}.0` : "-");
-                } else {
-                    document.getElementById('team2Score').textContent = "Yet to bat";
-                    document.getElementById('team2Runs').textContent = "Yet to bat";
-                }
-            }
-            
-            // Stream URL
-            const streamUrl = matchData.playPath;
-            
-            // Initialize HLS
-            let hls;
-            if (Hls.isSupported()) {
-                hls = new Hls({
-                    debug: false,
-                    enableWorker: true,
-                    lowLatencyMode: true,
-                    backBufferLength: 90
-                });
-                
-                hls.loadSource(streamUrl);
-                hls.attachMedia(video);
-                
-                hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-                    overlay.style.display = 'none';
-                    video.play().catch(e => {
-                        console.log("Autoplay prevented:", e);
-                        overlay.innerHTML = "<div>Click to play</div>";
-                        overlay.style.display = 'flex';
-                        overlay.onclick = () => {
-                            video.play();
-                            overlay.style.display = 'none';
-                        };
-                    });
-                    
-                    // Quality selector setup
-                    const levels = data.levels;
-                    if (levels.length > 1) {
-                        // Clear existing options
-                        while (qualityOptions.firstChild) {
-                            qualityOptions.removeChild(qualityOptions.firstChild);
-                        }
-                        
-                        // Add Auto option
-                        const autoOption = document.createElement('div');
-                        autoOption.className = 'quality-option active';
-                        autoOption.setAttribute('data-quality', '-1');
-                        autoOption.textContent = 'Auto';
-                        qualityOptions.appendChild(autoOption);
-                        
-                        // Add specific quality options
-                        levels.forEach((level, idx) => {
-                            const option = document.createElement('div');
-                            option.className = 'quality-option';
-                            option.setAttribute('data-quality', idx);
-                            
-                            // Set name based on height
-                            let qualityName;
-                            if (level.height >= 720) qualityName = 'HD';
-                            else if (level.height >= 480) qualityName = 'Medium';
-                            else qualityName = 'Low';
-                            
-                            option.textContent = `${qualityName} (${level.height}p)`;
-                            qualityOptions.appendChild(option);
-                            
-                            option.addEventListener('click', function() {
-                                hls.currentLevel = parseInt(this.getAttribute('data-quality'));
-                                qualityBtn.textContent = this.textContent;
-                                
-                                // Update active class
-                                document.querySelectorAll('.quality-option').forEach(opt => {
-                                    opt.classList.remove('active');
-                                });
-                                this.classList.add('active');
-                                
-                                qualityOptions.style.display = 'none';
-                            });
-                        });
-                        
-                        // Set up Auto option click event
-                        autoOption.addEventListener('click', function() {
-                            hls.currentLevel = -1;  // -1 is auto
-                            qualityBtn.textContent = 'Auto';
-                            
-                            // Update active class
-                            document.querySelectorAll('.quality-option').forEach(opt => {
-                                opt.classList.remove('active');
-                            });
-                            this.classList.add('active');
-                            
-                            qualityOptions.style.display = 'none';
-                        });
-                    } else {
-                        // No quality options available
-                        qualityBtn.style.display = 'none';
-                    }
-                });
-                
-                hls.on(Hls.Events.ERROR, function(event, data) {
-                    if (data.fatal) {
-                        switch(data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                console.log("Network error, trying to recover...");
-                                hls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                console.log("Media error, trying to recover...");
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                console.log("Fatal error, cannot recover");
-                                overlay.innerHTML = "<div>Stream error. Please try again later.</div>";
-                                overlay.style.display = 'flex';
-                                break;
-                        }
-                    }
-                });
-            } 
-            // For Safari with native HLS support
-            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = streamUrl;
-                video.addEventListener('loadedmetadata', function() {
-                    overlay.style.display = 'none';
-                    video.play().catch(e => {
-                        console.log("Autoplay prevented:", e);
-                        overlay.innerHTML = "<div>Click to play</div>";
-                        overlay.style.display = 'flex';
-                        overlay.onclick = () => {
-                            video.play();
-                            overlay.style.display = 'none';
-                        };
-                    });
-                });
-                
-                // Hide quality button for Safari as we can't control it
-                qualityBtn.style.display = 'none';
-            } else {
-                overlay.innerHTML = "<div>Your browser does not support HLS playback</div>";
-            }
-            
-            // Play/Pause button
-            playPauseBtn.addEventListener('click', function() {
-                if (video.paused) {
-                    video.play();
-                    playPauseBtn.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="6" y="4" width="4" height="16"></rect>
-                            <rect x="14" y="4" width="4" height="16"></rect>
-                        </svg>
-                    `;
-                } else {
-                    video.pause();
-                    playPauseBtn.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                    `;
-                }
-            });
-            
-            // Update play/pause button when video state changes
-            video.addEventListener('play', function() {
-                playPauseBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="6" y="4" width="4" height="16"></rect>
-                        <rect x="14" y="4" width="4" height="16"></rect>
-                    </svg>
-                `;
-                overlay.style.display = 'none';
-            });
-            
-            video.addEventListener('pause', function() {
-                playPauseBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                `;
-            });
-            
-            // Mute button
-            muteBtn.addEventListener('click', function() {
-                video.muted = !video.muted;
-                if (video.muted) {
+  <script>
+    const video = document.getElementById('video');
+    const playBtn = document.querySelector('.play-btn');
+    const volumeBtn = document.querySelector('.volume-btn');
+    const fullscreenBtn = document.querySelector('.fullscreen-btn');
+    const qualitySelect = document.getElementById('qualitySelect');
+
+    const videoSrc = 'https://ee4ee8c03a26.eu-central-1.playback.live-video.net/api/video/v1/eu-central-1.755921704393.channel.LOohfipmCQDP.m3u8'; // Replace with your own HLS link
+
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(videoSrc);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+        const levels = hls.levels;
+
+        levels.forEach((level, i) => {
+          const option = document.createElement('option');
+          option.value = i;
+          option.text = `${level.height}p`;
+          qualitySelect.appendChild(option);
+        });
+
+        qualitySelect.addEventListener('change', (e) => {
+          const value = e.target.value;
+          if (value === 'auto') {
+            hls.currentLevel = -1;
+          } else {
+            hls.currentLevel = parseInt(value);
+          }
+        });
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = videoSrc;
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+    });
+
+    volumeBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      volumeBtn.textContent = video.muted ? '🔇' : '🔊';
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+      if (video.requestFullscreen) {
+        video.requestFullscreen();
+      } else if (video.webkitRequestFullscreen) {
+        video.webkitRequestFullscreen();
+      } else if (video.msRequestFullscreen) {
+        video.msRequestFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
