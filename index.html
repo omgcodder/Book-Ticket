@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Premium Live Stream Player</title>
   <!-- Import Video.js CSS and JS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.21.1/video-js.min.css" rel="stylesheet" />
@@ -19,6 +19,38 @@
       --muted-text: #94a3b8;
       --control-bg: rgba(17, 24, 39, 0.8);
     }
+    /* Quality Menu Styles */
+    .quality-menu {
+      position: absolute;
+      bottom: 60px;
+      right: 1rem;
+      background: var(--control-bg);
+      border-radius: 8px;
+      padding: 0.5rem 0;
+      display: none;
+      flex-direction: column;
+      min-width: 120px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      z-index: 15;
+    }
+    .quality-menu.active {
+      display: flex;
+    }
+    .quality-option {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 0.875rem;
+    }
+    .quality-option:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .quality-option.active {
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -27,8 +59,7 @@
     body {
       background-color: var(--darker-bg);
       color: var(--light-text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-        Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -90,17 +121,14 @@
       z-index: 9999;
       border-radius: 0;
     }
-    /* Custom Video.js Skin */
     .video-js {
       width: 100%;
       height: 100%;
       background-color: #000;
     }
-    /* Hide Video.js default controls; we'll use our custom controls */
     .vjs-control-bar {
       display: none !important;
     }
-    /* Custom Controls */
     .controls-container {
       position: absolute;
       bottom: 0;
@@ -349,6 +377,12 @@
                 </div>
               </div>
               <div class="right-controls">
+                <button class="btn" id="qualityBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                  </svg>
+                </button>
                 <button class="btn" id="fullscreenBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -360,6 +394,9 @@
             <div class="progress-container" id="progressContainer">
               <div class="progress-hover" id="progressHover"></div>
               <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="quality-menu" id="qualityMenu">
+              <!-- Quality options will be populated dynamically -->
             </div>
           </div>
         </div>
@@ -376,6 +413,8 @@
       const volumeBtn = document.getElementById('volumeBtn');
       const volumeSlider = document.getElementById('volumeSlider');
       const volumeLevel = document.getElementById('volumeLevel');
+      const qualityBtn = document.getElementById('qualityBtn');
+      const qualityMenu = document.getElementById('qualityMenu');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
@@ -393,15 +432,32 @@
       let volume = 1;
       let player = null;
       let controlsTimeout;
-      // Hardcoded stream URL
+      let currentQuality = 'auto';
+
+      // Use your desired stream URL.
+      // Note: If this stream does not provide multiple quality levels,
+      // quality menu may not show representations.
       const streamUrl = 'https://spt-sonykal-1-us.lg.wurl.tv/playlist.m3u8';
+      // For testing quality selection, you can use:
+      // const streamUrl = 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8';
+
+      // Add qualityBtn click event to toggle quality menu visibility
+      qualityBtn.addEventListener('click', () => {
+        qualityMenu.classList.toggle('active');
+      });
+      // Optional: Hide quality menu when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!qualityMenu.contains(e.target) && e.target !== qualityBtn) {
+          qualityMenu.classList.remove('active');
+        }
+      });
 
       // Create or recreate the video element
       function resetVideoElement() {
         videoWrapper.innerHTML = '<video id="videoPlayer" class="video-js vjs-fluid" preload="auto" playsinline></video>';
       }
 
-      // Initialize Video.js player with a given URL
+      // Initialize Video.js player with the given URL
       function initPlayer(url) {
         if (player) {
           player.dispose();
@@ -486,9 +542,12 @@
             showError('Stream error occurred.');
           });
 
-          // Set initial volume
           this.volume(volume);
           updateVolumeSlider();
+        });
+
+        player.ready(function() {
+          setTimeout(populateQualityMenu, 3000);
         });
       }
 
@@ -500,6 +559,104 @@
 
       function hideError() {
         errorOverlay.classList.add('hidden');
+      }
+
+      function populateQualityMenu() {
+        qualityMenu.innerHTML = '';
+
+        // Auto option
+        const autoOption = document.createElement('div');
+        autoOption.className = 'quality-option active';
+        autoOption.setAttribute('data-quality', 'auto');
+        autoOption.setAttribute('data-index', '-1');
+        autoOption.textContent = 'Auto';
+        qualityMenu.appendChild(autoOption);
+
+        try {
+          if (player && player.tech && player.tech() && player.tech().vhs) {
+            const tech = player.tech();
+            if (tech.vhs && tech.vhs.representations) {
+              const representations = tech.vhs.representations();
+              if (representations && representations.length > 0) {
+                console.log('Found', representations.length, 'quality levels');
+                representations.forEach((rep, index) => {
+                  const height = rep.height || Math.round(rep.bandwidth / 10000);
+                  const option = document.createElement('div');
+                  option.className = 'quality-option';
+                  option.setAttribute('data-quality', `${height}p`);
+                  option.setAttribute('data-index', index.toString());
+                  option.textContent = `${height}p`;
+                  qualityMenu.appendChild(option);
+                });
+              } else {
+                console.log('No quality representations found, using fallback options');
+                addFallbackQualityOptions();
+              }
+            } else {
+              console.log('VHS representations not available, using fallback options');
+              addFallbackQualityOptions();
+            }
+          } else {
+            console.log('Tech or VHS not available, using fallback options');
+            addFallbackQualityOptions();
+          }
+        } catch (err) {
+          console.error('Error populating quality menu:', err);
+          addFallbackQualityOptions();
+        }
+
+        document.querySelectorAll('.quality-option').forEach(option => {
+          option.addEventListener('click', function() {
+            const index = parseInt(this.getAttribute('data-index'));
+            const quality = this.getAttribute('data-quality');
+            changeQuality(index, quality);
+            qualityMenu.classList.remove('active');
+          });
+        });
+      }
+
+      function addFallbackQualityOptions() {
+        const qualities = [
+          { height: 1080, index: 0 },
+          { height: 720, index: 1 },
+          { height: 480, index: 2 },
+          { height: 360, index: 3 }
+        ];
+        qualities.forEach(q => {
+          const option = document.createElement('div');
+          option.className = 'quality-option';
+          option.setAttribute('data-quality', `${q.height}p`);
+          option.setAttribute('data-index', q.index.toString());
+          option.textContent = `${q.height}p`;
+          qualityMenu.appendChild(option);
+        });
+      }
+
+      function changeQuality(index, quality) {
+        if (!player || !player.tech || !player.tech()) return;
+        try {
+          const tech = player.tech();
+          currentQuality = quality;
+          if (index === -1) {
+            if (tech.vhs && tech.vhs.representations) {
+              tech.vhs.representations().forEach(rep => rep.enabled(true));
+              console.log('Set to auto quality');
+            }
+          } else if (tech.vhs && tech.vhs.representations) {
+            const representations = tech.vhs.representations();
+            representations.forEach((rep, idx) => {
+              rep.enabled(idx === index);
+            });
+            console.log('Set quality to:', quality);
+          }
+          document.querySelectorAll('.quality-option').forEach(opt => {
+            opt.classList.remove('active');
+          });
+          const selected = document.querySelector(`.quality-option[data-index="${index}"]`);
+          if (selected) selected.classList.add('active');
+        } catch (err) {
+          console.error('Error changing quality:', err);
+        }
       }
 
       function togglePlay() {
