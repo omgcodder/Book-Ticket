@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AniVortex Live Stream</title>
+  <title>Premium Live Stream Player</title>
   <!-- Import Video.js CSS and JS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.21.1/video-js.min.css" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.21.1/video.min.js"></script>
@@ -495,7 +495,7 @@
             if (!isPlaying) {
               handleStreamError('Stream is taking too long to load. Trying alternative stream...');
             }
-          }, 15000);
+          }, 30000);
 
           this.on('loadedmetadata', function() {
             console.log('Stream metadata loaded');
