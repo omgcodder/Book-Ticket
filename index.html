@@ -121,11 +121,16 @@
       z-index: 9999;
       border-radius: 0;
     }
-    /* Responsive Video element styling for cover-fit */
+    /* Responsive Video element styling */
     .video-js video {
+      /* Default is cover in non-fullscreen */
       object-fit: cover;
       width: 100%;
       height: 100%;
+    }
+    /* In fullscreen mode use contain so video is not cropped */
+    .player-container.fullscreen .video-js video {
+      object-fit: contain;
     }
     /* Remove default Video.js control bar */
     .vjs-control-bar {
@@ -142,7 +147,6 @@
       transition: transform 0.3s ease;
       z-index: 10;
     }
-    .player-container:hover .controls-container,
     .controls-container.active {
       transform: translateY(0);
     }
@@ -187,6 +191,9 @@
       border-radius: 5px;
       cursor: pointer;
       overflow: hidden;
+      margin-top: 0.5rem;
+      /* Initially visible; we hide via JS for live streams */
+      display: block;
     }
     .progress-bar {
       height: 100%;
@@ -387,7 +394,6 @@
                   </svg>
                 </button>
                 <!-- Toggle button for Fit Mode -->
-                
                 <button class="btn" id="fullscreenBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -421,7 +427,6 @@
       const qualityBtn = document.getElementById('qualityBtn');
       const qualityMenu = document.getElementById('qualityMenu');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
- 
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
       const progressHover = document.getElementById('progressHover');
@@ -439,7 +444,7 @@
       let player = null;
       let controlsTimeout;
       let currentQuality = 'auto';
-      // Default fit mode: cover. Can be toggled to 'contain'
+      // Default fit mode: cover for regular but change to contain in fullscreen via CSS override
       let currentFitMode = 'cover';
 
       // Stream URL; for testing quality, a stream with ABR support is recommended.
@@ -456,8 +461,6 @@
           qualityMenu.classList.remove('active');
         }
       });
-
-      
 
       // Create/Recreate video element
       function resetVideoElement() {
@@ -641,7 +644,7 @@
       }
 
       function changeQuality(index, quality) {
-        if (!player || !player.tech || !player.tech()) return;
+        if (!player || !player.tech) return;
         try {
           const tech = player.tech();
           currentQuality = quality;
@@ -758,10 +761,16 @@
         }
       }
 
+      // Update progress bar; if live, hide the progress container
       function updateProgressBar() {
-        if (!player || isLive || isNaN(player.duration())) return;
-        const percentage = (player.currentTime() / player.duration()) * 100;
-        progressBar.style.width = percentage + '%';
+        if (!player || isNaN(player.duration())) return;
+        if (isLive) {
+          progressContainer.style.display = 'none';
+        } else {
+          progressContainer.style.display = 'block';
+          const percentage = (player.currentTime() / player.duration()) * 100;
+          progressBar.style.width = percentage + '%';
+        }
       }
 
       function seekVideo(e) {
@@ -805,14 +814,18 @@
       // Reset controls timer to show controls on interaction and auto-hide after 10 seconds.
       function resetControlsTimer() {
         if (controlsTimeout) clearTimeout(controlsTimeout);
-        controlsContainer.classList.add('active');
-        controlsTimeout = setTimeout(() => {
-          // यदि वीडियो चल रहा हो तो ही कंट्रोल्स छुपाएं।
-          if (isPlaying) controlsContainer.classList.remove('active');
-        }, 10000); // 10 सेकंड के बाद ऑटो-हाइड
+        // Toggle: if already visible then hide, else show
+        if (controlsContainer.classList.contains('active')) {
+          controlsContainer.classList.remove('active');
+        } else {
+          controlsContainer.classList.add('active');
+          controlsTimeout = setTimeout(() => {
+            if (isPlaying) controlsContainer.classList.remove('active');
+          }, 10000);
+        }
       }
 
-      // Event Listeners for both mouse and touch events
+      // Event Listeners
       playPauseBtn.addEventListener('click', togglePlay);
       volumeBtn.addEventListener('click', toggleMute);
       fullscreenBtn.addEventListener('click', toggleFullscreen);
@@ -837,16 +850,16 @@
           player.muted(false);
         }
       });
-      // Touch and mouse events to reset controls timer
-      playerContainer.addEventListener('mousemove', resetControlsTimer);
-      playerContainer.addEventListener('touchstart', resetControlsTimer);
-      
-      // Clicking on the player container toggles play; ensure it doesn't conflict with control buttons.
+      // Use both mouse and touch events to toggle controls
       playerContainer.addEventListener('click', (e) => {
-        if (e.target === playerContainer || e.target.id === 'videoPlayer' || e.target.classList.contains('vjs-tech')) {
-          togglePlay();
+        // If the click is not on one of the buttons (we check for closest in controls container), toggle controls visibility.
+        if (!e.target.closest('.btn') && !e.target.closest('.volume-slider')) {
+          resetControlsTimer();
         }
       });
+      // Also reset controls on any movement
+      playerContainer.addEventListener('mousemove', resetControlsTimer);
+      playerContainer.addEventListener('touchstart', resetControlsTimer);
       
       document.addEventListener('keydown', (e) => {
         if (!player) return;
