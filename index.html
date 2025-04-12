@@ -127,15 +127,22 @@
       height: 100%;
       background-color: #000;
     }
-    .video-js video {
-      object-fit: contain !important; /* Always use contain to prevent cropping */
-    }
+   .video-js video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  aspect-ratio: 16/9;
+}
     /* FIX: Make player responsive to viewport in fullscreen */
     .player-container.fullscreen .video-js,
-    .player-container.fullscreen video {
-      width: 100%;
-      height: 100%;
-    }
+   .player-container.fullscreen video {
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: contain !important;
+  max-height: 100vh !important;
+  max-width: 100vw !important;
+}
     /* Remove default Video.js control bar */
     .vjs-control-bar {
       display: none !important;
@@ -485,7 +492,8 @@
           autoplay: true,
           muted: true,
           preload: 'auto',
-          fluid: true,
+           fluid: false,  // Change this to false
+  aspectRatio: '16:9', // Add this explicit aspect ratio
           liveui: true,
           responsive: true,
           html5: {
@@ -740,35 +748,47 @@
       }
 
       // FIX: Improved fullscreen handling for mobile
-      function toggleFullscreen() {
-        if (!document.fullscreenElement) {
-          // Before entering fullscreen, set video object-fit to contain
-          const videoElement = playerContainer.querySelector('video');
-          if (videoElement) {
-            videoElement.style.objectFit = 'contain';
-          }
-          
-          // Enter fullscreen
-          if (playerContainer.requestFullscreen) {
-            playerContainer.requestFullscreen();
-          } else if (playerContainer.webkitRequestFullscreen) {
-            playerContainer.webkitRequestFullscreen();
-          } else if (playerContainer.msRequestFullscreen) {
-            playerContainer.msRequestFullscreen();
-          }
-          playerContainer.classList.add('fullscreen');
-        } else {
-          // Exit fullscreen
-          if (document.exitFullscreen) {
-            document.exitFullscreen();
-          } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-          } else if (document.msExitFullscreen) {
-            document.msExitFullscreen();
-          }
-          playerContainer.classList.remove('fullscreen');
-        }
-      }
+     function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    // Ensure the video uses contain in fullscreen
+    const videoElements = playerContainer.querySelectorAll('video');
+    videoElements.forEach(video => {
+      video.style.objectFit = 'contain';
+    });
+    
+    // Enter fullscreen
+    if (playerContainer.requestFullscreen) {
+      playerContainer.requestFullscreen();
+    } else if (playerContainer.webkitRequestFullscreen) {
+      playerContainer.webkitRequestFullscreen();
+    } else if (playerContainer.msRequestFullscreen) {
+      playerContainer.msRequestFullscreen();
+    }
+    playerContainer.classList.add('fullscreen');
+    // Inside the if (!document.fullscreenElement) block
+// After playerContainer.classList.add('fullscreen');
+setTimeout(() => {
+  const videoElement = playerContainer.querySelector('video');
+  if (videoElement) {
+    videoElement.style.width = '100vw';
+    videoElement.style.height = '100vh';
+    videoElement.style.maxWidth = 'none';
+    videoElement.style.maxHeight = 'none';
+    videoElement.style.objectFit = 'contain';
+  }
+}, 100);
+  } else {
+    // Exit fullscreen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
+    }
+    playerContainer.classList.remove('fullscreen');
+  }
+}
 
       function showLoading() {
         loadingOverlay.classList.remove('hidden');
@@ -814,7 +834,7 @@
       // FIX: New improved touch handling for mobile devices
       if (isMobile) {
         // Use touchend for better response on mobile
-        videoWrapper.addEventListener('touchend', function(e) {
+       videoWrapper.addEventListener('touchend', function(e) {
           // Only handle simple taps, not swipes
           if (Math.abs(e.changedTouches[0].screenY - lastTouchY) < 10) {
             toggleControls();
@@ -879,6 +899,7 @@
             !document.mozFullScreenElement && 
             !document.msFullscreenElement) {
           playerContainer.classList.remove('fullscreen');
+          playerContainer.classList.remove('fullscreen-fix');
         }
       }
 
@@ -920,6 +941,49 @@
       if (player) {
         player.volume(1.0);
         updateVolumeSlider();
+      }
+      
+      // Add CSS to fix aspect ratio in fullscreen but with a gentler approach
+      const styleElement = document.createElement('style');
+     styleElement.textContent = `
+  /* Only apply these styles when our special class is added */
+  .player-container.fullscreen .video-js,
+  .player-container.fullscreen-fix .video-js {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+  
+  /* Ensure video maintains aspect ratio */
+  .player-container.fullscreen video,
+  .player-container.fullscreen .vjs-tech,
+  .player-container.fullscreen-fix .vjs-tech {
+    object-fit: contain !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    margin: 0 auto !important;
+  }
+`;
+      document.head.appendChild(styleElement);
+      
+      // For iOS/iPadOS fullscreen fixes
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+        // Add a special function to handle iOS fullscreen
+        document.addEventListener('webkitfullscreenchange', function() {
+          setTimeout(function() {
+            // For iOS, briefly pause and play to refresh the video display
+            if (player && document.webkitFullscreenElement) {
+              const wasPlaying = !player.paused();
+              if (wasPlaying) {
+                player.pause();
+                setTimeout(function() {
+                  player.play();
+                }, 100);
+              }
+            }
+          }, 500);
+        });
       }
 
       // FIX: Ensure controls are hidden when inactive
