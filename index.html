@@ -183,31 +183,6 @@
       width: 24px;
       height: 24px;
     }
-    .progress-container {
-      position: relative;
-      width: 100%;
-      height: 5px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 5px;
-      cursor: pointer;
-      overflow: hidden;
-      margin-top: 0.5rem;
-      /* Initially visible; we hide via JS for live streams */
-      display: block;
-    }
-    .progress-bar {
-      height: 100%;
-      background: var(--primary-color);
-      border-radius: 5px;
-      width: 0;
-    }
-    .progress-hover {
-      position: absolute;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.3);
-      width: 0;
-      transform: translateX(-100%);
-    }
     .live-indicator {
       display: flex;
       align-items: center;
@@ -393,7 +368,6 @@
                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
                   </svg>
                 </button>
-                <!-- Toggle button for Fit Mode -->
                 <button class="btn" id="fullscreenBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -401,10 +375,6 @@
                   </svg>
                 </button>
               </div>
-            </div>
-            <div class="progress-container" id="progressContainer">
-              <div class="progress-hover" id="progressHover"></div>
-              <div class="progress-bar" id="progressBar"></div>
             </div>
             <div class="quality-menu" id="qualityMenu">
               <!-- Quality options will be populated dynamically -->
@@ -427,9 +397,6 @@
       const qualityBtn = document.getElementById('qualityBtn');
       const qualityMenu = document.getElementById('qualityMenu');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
-      const progressContainer = document.getElementById('progressContainer');
-      const progressBar = document.getElementById('progressBar');
-      const progressHover = document.getElementById('progressHover');
       const loadingOverlay = document.getElementById('loadingOverlay');
       const liveIndicator = document.getElementById('liveIndicator');
       const errorOverlay = document.getElementById('errorOverlay');
@@ -439,13 +406,9 @@
       // State variables
       let isPlaying = false;
       let isMuted = false;
-      let isLive = true;
-      let volume = 1;
       let player = null;
       let controlsTimeout;
       let currentQuality = 'auto';
-      // Default fit mode: cover for regular but change to contain in fullscreen via CSS override
-      let currentFitMode = 'cover';
 
       // Stream URL; for testing quality, a stream with ABR support is recommended.
       const streamUrl = 'https://ee4ee8c03a26.eu-central-1.playback.live-video.net/api/video/v1/eu-central-1.755921704393.channel.LOohfipmCQDP.m3u8';
@@ -455,7 +418,7 @@
         e.stopPropagation();
         qualityMenu.classList.toggle('active');
       });
-      // Hide quality menu when clicking outside of it and the quality button
+      // Hide quality menu when clicking outside
       document.addEventListener('click', (e) => {
         if (!qualityMenu.contains(e.target) && e.target !== qualityBtn) {
           qualityMenu.classList.remove('active');
@@ -514,7 +477,6 @@
           this.on('loadedmetadata', function() {
             console.log('Stream metadata loaded');
             clearTimeout(loadingTimeout);
-            checkIfLive();
           });
 
           this.on('waiting', function() {
@@ -535,14 +497,8 @@
             updatePlayPauseButton();
           });
 
-          this.on('timeupdate', function() {
-            updateProgressBar();
-            checkIfLive();
-          });
-
           this.on('volumechange', function() {
             isMuted = this.muted();
-            volume = this.volume();
             updateVolumeButton();
             updateVolumeSlider();
           });
@@ -552,7 +508,7 @@
             showError('Stream error occurred.');
           });
 
-          this.volume(volume);
+          this.volume(1);
           updateVolumeSlider();
         });
 
@@ -761,48 +717,6 @@
         }
       }
 
-      // Update progress bar; if live, hide the progress container
-      function updateProgressBar() {
-        if (!player || isNaN(player.duration())) return;
-        if (isLive) {
-          progressContainer.style.display = 'none';
-        } else {
-          progressContainer.style.display = 'block';
-          const percentage = (player.currentTime() / player.duration()) * 100;
-          progressBar.style.width = percentage + '%';
-        }
-      }
-
-      function seekVideo(e) {
-        if (isLive || !player || isNaN(player.duration())) return;
-        const rect = progressContainer.getBoundingClientRect();
-        const position = (e.clientX - rect.left) / rect.width;
-        const seekTime = player.duration() * position;
-        player.currentTime(seekTime);
-        progressBar.style.width = (position * 100) + '%';
-        isLive = false;
-      }
-
-      function showProgressHover(e) {
-        if (isLive || !player || isNaN(player.duration())) return;
-        const rect = progressContainer.getBoundingClientRect();
-        const position = (e.clientX - rect.left) / rect.width;
-        progressHover.style.width = (position * 100) + '%';
-        progressHover.style.transform = 'translateX(0)';
-      }
-
-      function hideProgressHover() {
-        progressHover.style.transform = 'translateX(-100%)';
-      }
-
-      function checkIfLive() {
-        if (!player || isNaN(player.duration())) return;
-        const liveThreshold = 10;
-        const currentTime = player.currentTime();
-        const duration = player.duration();
-        isLive = (duration - currentTime) < liveThreshold;
-      }
-
       function showLoading() {
         loadingOverlay.classList.remove('hidden');
       }
@@ -811,55 +725,45 @@
         loadingOverlay.classList.add('hidden');
       }
 
-      // Reset controls timer to show controls on interaction and auto-hide after 10 seconds.
-      function resetControlsTimer() {
-        if (controlsTimeout) clearTimeout(controlsTimeout);
-        // Toggle: if already visible then hide, else show
+      // Toggle controls visibility only when tapping on the video background.
+      // (Events on controls will be stopped from propagating.)
+      videoWrapper.addEventListener('click', function() {
         if (controlsContainer.classList.contains('active')) {
           controlsContainer.classList.remove('active');
         } else {
           controlsContainer.classList.add('active');
+          if (isPlaying) {
+            clearTimeout(controlsTimeout);
+            controlsTimeout = setTimeout(() => {
+              controlsContainer.classList.remove('active');
+            }, 10000);
+          }
+        }
+      });
+
+      // Additional listeners for mousemove and touchstart
+      playerContainer.addEventListener('mousemove', () => {
+        if (!controlsContainer.classList.contains('active')) {
+          controlsContainer.classList.add('active');
+        }
+        clearTimeout(controlsTimeout);
+        if (isPlaying) {
           controlsTimeout = setTimeout(() => {
-            if (isPlaying) controlsContainer.classList.remove('active');
+            controlsContainer.classList.remove('active');
           }, 10000);
         }
-      }
-
-      // Event Listeners
-      playPauseBtn.addEventListener('click', togglePlay);
-      volumeBtn.addEventListener('click', toggleMute);
-      fullscreenBtn.addEventListener('click', toggleFullscreen);
-      liveIndicator.addEventListener('click', () => {
-        if (!isLive && player && !isNaN(player.duration())) {
-          player.currentTime(player.duration());
-          isLive = true;
+      });
+      playerContainer.addEventListener('touchstart', () => {
+        if (!controlsContainer.classList.contains('active')) {
+          controlsContainer.classList.add('active');
+        }
+        clearTimeout(controlsTimeout);
+        if (isPlaying) {
+          controlsTimeout = setTimeout(() => {
+            controlsContainer.classList.remove('active');
+          }, 10000);
         }
       });
-      retryButton.addEventListener('click', () => {
-        hideError();
-        initPlayer(streamUrl);
-      });
-      progressContainer.addEventListener('click', seekVideo);
-      progressContainer.addEventListener('mousemove', showProgressHover);
-      progressContainer.addEventListener('mouseleave', hideProgressHover);
-      volumeSlider.addEventListener('click', (e) => {
-        const rect = volumeSlider.getBoundingClientRect();
-        const position = (e.clientX - rect.left) / rect.width;
-        if (player) {
-          player.volume(position);
-          player.muted(false);
-        }
-      });
-      // Use both mouse and touch events to toggle controls
-      playerContainer.addEventListener('click', (e) => {
-        // If the click is not on one of the buttons (we check for closest in controls container), toggle controls visibility.
-        if (!e.target.closest('.btn') && !e.target.closest('.volume-slider')) {
-          resetControlsTimer();
-        }
-      });
-      // Also reset controls on any movement
-      playerContainer.addEventListener('mousemove', resetControlsTimer);
-      playerContainer.addEventListener('touchstart', resetControlsTimer);
       
       document.addEventListener('keydown', (e) => {
         if (!player) return;
@@ -874,16 +778,6 @@
             break;
           case 'f':
             toggleFullscreen();
-            break;
-          case 'ArrowRight':
-            if (!isLive && !isNaN(player.duration())) {
-              player.currentTime(Math.min(player.currentTime() + 10, player.duration()));
-            }
-            break;
-          case 'ArrowLeft':
-            if (!isNaN(player.duration())) {
-              player.currentTime(Math.max(player.currentTime() - 10, 0));
-            }
             break;
           case 'ArrowUp':
             if (player.volume() < 1) {
@@ -911,6 +805,27 @@
         if (player) player.dispose();
       });
 
+      // STOP propagation in control button event listeners
+      playPauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlay();
+      });
+      volumeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMute();
+      });
+      fullscreenBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen();
+      });
+
+      // For the retry button, prevent propagation as well.
+      retryButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideError();
+        initPlayer(streamUrl);
+      });
+      
       showLoading();
       initPlayer(streamUrl);
     });
