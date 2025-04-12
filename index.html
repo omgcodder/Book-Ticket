@@ -1400,6 +1400,33 @@
       initPlayer(streams[0].url);
       resetControlsTimer();
     });
+
+    player.tech().on('bandwidthupdate', function() {
+  const bw = player.tech().vhs.bandwidth;
+  console.log('Current bandwidth:', bw);
+});
+if (bw > 3000000) {
+  streamHealth = 'good';
+} else if (bw > 1000000) {
+  streamHealth = 'medium';
+} else {
+  streamHealth = 'poor';
+}
+updateConnectionStatus();
+setInterval(() => {
+  if (player && player.bufferedEnd) {
+    const bufferAhead = player.bufferedEnd() - player.currentTime();
+    if (bufferAhead < 5) {
+      streamHealth = 'poor';
+    } else if (bufferAhead < 15) {
+      streamHealth = 'medium';
+    } else {
+      streamHealth = 'good';
+    }
+    updateConnectionStatus();
+  }
+}, 5000);
+
   </script>
 </body>
 </html>
