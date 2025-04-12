@@ -213,35 +213,6 @@
       background: #fff;
       width: 100%;
     }
-    .quality-menu {
-      position: absolute;
-      bottom: 60px;
-      right: 1rem;
-      background: var(--control-bg);
-      border-radius: 8px;
-      padding: 0.5rem 0;
-      display: none;
-      flex-direction: column;
-      min-width: 120px;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(10px);
-    }
-    .quality-menu.active {
-      display: flex;
-    }
-    .quality-option {
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      transition: background 0.2s;
-      font-size: 0.875rem;
-    }
-    .quality-option:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-    .quality-option.active {
-      color: var(--primary-color);
-      font-weight: 600;
-    }
     .loading-overlay {
       position: absolute;
       top: 0;
@@ -340,9 +311,9 @@
     <div class="stream-container">
       <div class="player-section">
         <div class="player-container" id="playerContainer">
-          <!-- The video element is created here. We will recreate it on reinitialization -->
+          <!-- Video element will be recreated dynamically -->
           <div id="videoWrapper">
-            <video id="videoPlayer" class="video-js vjs-fluid" preload="auto"></video>
+            <video id="videoPlayer" class="video-js vjs-fluid" preload="auto" playsinline></video>
           </div>
           <div class="loading-overlay" id="loadingOverlay">
             <div class="spinner"></div>
@@ -366,8 +337,6 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
                     </svg>
                   </button>
                   <div class="volume-slider" id="volumeSlider">
@@ -380,12 +349,6 @@
                 </div>
               </div>
               <div class="right-controls">
-                <button class="btn" id="qualityBtn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                  </svg>
-                </button>
                 <button class="btn" id="fullscreenBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -398,9 +361,6 @@
               <div class="progress-hover" id="progressHover"></div>
               <div class="progress-bar" id="progressBar"></div>
             </div>
-          </div>
-          <div class="quality-menu" id="qualityMenu">
-            <!-- Quality options will be populated dynamically -->
           </div>
         </div>
       </div>
@@ -416,8 +376,6 @@
       const volumeBtn = document.getElementById('volumeBtn');
       const volumeSlider = document.getElementById('volumeSlider');
       const volumeLevel = document.getElementById('volumeLevel');
-      const qualityBtn = document.getElementById('qualityBtn');
-      const qualityMenu = document.getElementById('qualityMenu');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
@@ -433,22 +391,14 @@
       let isMuted = false;
       let isLive = true;
       let volume = 1;
-      let currentQuality = 'auto';
       let player = null;
       let controlsTimeout;
-      let streamUrl = 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8';
+      // Hardcoded stream URL
+      const streamUrl = 'https://spt-sonykal-1-us.lg.wurl.tv/playlist.m3u8';
 
-      // Backup streams to try if the main one fails
-      const backupStreamUrls = [
-        'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8'',
-        'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8'',
-        'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8''
-      ];
-      let currentStreamIndex = 0;
-
-      // Create or recreate the video element (to avoid invalid element errors)
+      // Create or recreate the video element
       function resetVideoElement() {
-        videoWrapper.innerHTML = '<video id="videoPlayer" class="video-js vjs-fluid" preload="auto"></video>';
+        videoWrapper.innerHTML = '<video id="videoPlayer" class="video-js vjs-fluid" preload="auto" playsinline></video>';
       }
 
       // Initialize Video.js player with a given URL
@@ -457,7 +407,6 @@
           player.dispose();
           player = null;
         }
-        // Recreate the video element before initializing
         resetVideoElement();
         hideError();
         showLoading();
@@ -466,6 +415,7 @@
         const options = {
           controls: false,
           autoplay: true,
+          muted: true,
           preload: 'auto',
           fluid: true,
           liveui: true,
@@ -486,14 +436,12 @@
           }]
         };
 
-        // Initialize Video.js with the element reference
         player = videojs(videoEl, options, function() {
           console.log('Player initialized with stream:', url);
 
-          // Timeout to detect loading issues
           const loadingTimeout = setTimeout(() => {
             if (!isPlaying) {
-              handleStreamError('Stream is taking too long to load. Trying alternative stream...');
+              showError('Stream is taking too long to load.');
             }
           }, 30000);
 
@@ -535,32 +483,13 @@
 
           this.on('error', function(e) {
             console.error('Video.js error:', this.error());
-            handleStreamError('Stream error occurred. Trying alternative stream...');
+            showError('Stream error occurred.');
           });
 
           // Set initial volume
           this.volume(volume);
           updateVolumeSlider();
         });
-
-        // Populate quality menu after a short delay
-        player.ready(function() {
-          setTimeout(() => {
-            populateQualityMenu();
-          }, 3000);
-        });
-      }
-
-      function handleStreamError(msg) {
-        console.error(msg);
-        currentStreamIndex++;
-        if (currentStreamIndex < backupStreamUrls.length) {
-          streamUrl = backupStreamUrls[currentStreamIndex];
-          console.log('Trying alternate stream:', streamUrl);
-          initPlayer(streamUrl);
-        } else {
-          showError('Unable to load any stream. Please check your connection and try again.');
-        }
       }
 
       function showError(msg) {
@@ -573,111 +502,12 @@
         errorOverlay.classList.add('hidden');
       }
 
-      function populateQualityMenu() {
-        qualityMenu.innerHTML = '';
-
-        // Auto quality option
-        const autoOption = document.createElement('div');
-        autoOption.className = 'quality-option active';
-        autoOption.setAttribute('data-quality', 'auto');
-        autoOption.setAttribute('data-index', '-1');
-        autoOption.textContent = 'Auto';
-        qualityMenu.appendChild(autoOption);
-
-        try {
-          if (player && player.tech && player.tech() && player.tech().vhs) {
-            const tech = player.tech();
-            if (tech.vhs && tech.vhs.representations) {
-              const representations = tech.vhs.representations();
-              if (representations && representations.length > 0) {
-                console.log('Found', representations.length, 'quality levels');
-                representations.forEach((rep, index) => {
-                  const height = rep.height || Math.round(rep.bandwidth / 10000);
-                  const option = document.createElement('div');
-                  option.className = 'quality-option';
-                  option.setAttribute('data-quality', `${height}p`);
-                  option.setAttribute('data-index', index.toString());
-                  option.textContent = `${height}p`;
-                  qualityMenu.appendChild(option);
-                });
-              } else {
-                console.log('No quality representations found, using fallback options');
-                addFallbackQualityOptions();
-              }
-            } else {
-              console.log('VHS representations not available, using fallback options');
-              addFallbackQualityOptions();
-            }
-          } else {
-            console.log('Tech or VHS not available, using fallback options');
-            addFallbackQualityOptions();
-          }
-        } catch (err) {
-          console.error('Error populating quality menu:', err);
-          addFallbackQualityOptions();
-        }
-
-        // Add event listeners for quality options
-        document.querySelectorAll('.quality-option').forEach(option => {
-          option.addEventListener('click', function() {
-            const index = parseInt(this.getAttribute('data-index'));
-            const quality = this.getAttribute('data-quality');
-            changeQuality(index, quality);
-            qualityMenu.classList.remove('active');
-          });
-        });
-      }
-
-      function addFallbackQualityOptions() {
-        const qualities = [
-          { height: 1080, index: 0 },
-          { height: 720, index: 1 },
-          { height: 480, index: 2 },
-          { height: 360, index: 3 }
-        ];
-        qualities.forEach(q => {
-          const option = document.createElement('div');
-          option.className = 'quality-option';
-          option.setAttribute('data-quality', `${q.height}p`);
-          option.setAttribute('data-index', q.index.toString());
-          option.textContent = `${q.height}p`;
-          qualityMenu.appendChild(option);
-        });
-      }
-
-      function changeQuality(index, quality) {
-        if (!player || !player.tech || !player.tech()) return;
-        try {
-          const tech = player.tech();
-          currentQuality = quality;
-          if (index === -1) {
-            if (tech.vhs && tech.vhs.representations) {
-              tech.vhs.representations().forEach(rep => rep.enabled(true));
-              console.log('Set to auto quality');
-            }
-          } else if (tech.vhs && tech.vhs.representations) {
-            const representations = tech.vhs.representations();
-            representations.forEach((rep, idx) => {
-              rep.enabled(idx === index);
-            });
-            console.log('Set quality to:', quality);
-          }
-          document.querySelectorAll('.quality-option').forEach(opt => {
-            opt.classList.remove('active');
-          });
-          const selected = document.querySelector(`.quality-option[data-index="${index}"]`);
-          if (selected) selected.classList.add('active');
-        } catch (err) {
-          console.error('Error changing quality:', err);
-        }
-      }
-
       function togglePlay() {
         if (player) {
           if (player.paused()) {
             player.play().catch(err => {
               console.error('Error playing video:', err);
-              showError('Failed to play video. Please try again.');
+              showError('Failed to play video.');
             });
           } else {
             player.pause();
@@ -777,7 +607,6 @@
         player.currentTime(seekTime);
         progressBar.style.width = (position * 100) + '%';
         isLive = false;
-        updateLiveIndicator();
       }
 
       function showProgressHover(e) {
@@ -798,23 +627,6 @@
         const currentTime = player.currentTime();
         const duration = player.duration();
         isLive = (duration - currentTime) < liveThreshold;
-        updateLiveIndicator();
-      }
-
-      function updateLiveIndicator() {
-        if (isLive) {
-          liveIndicator.classList.add('active');
-        } else {
-          liveIndicator.classList.remove('active');
-        }
-      }
-
-      function goToLive() {
-        if (!isLive && player && !isNaN(player.duration())) {
-          player.currentTime(player.duration());
-          isLive = true;
-          updateLiveIndicator();
-        }
       }
 
       function showLoading() {
@@ -837,17 +649,16 @@
       playPauseBtn.addEventListener('click', togglePlay);
       volumeBtn.addEventListener('click', toggleMute);
       fullscreenBtn.addEventListener('click', toggleFullscreen);
-      qualityBtn.addEventListener('click', () => {
-        qualityMenu.classList.toggle('active');
+      liveIndicator.addEventListener('click', () => {
+        if (!isLive && player && !isNaN(player.duration())) {
+          player.currentTime(player.duration());
+          isLive = true;
+        }
       });
-      liveIndicator.addEventListener('click', goToLive);
       retryButton.addEventListener('click', () => {
-        currentStreamIndex = 0;
-        streamUrl = backupStreamUrls[0];
         hideError();
         initPlayer(streamUrl);
       });
-
       progressContainer.addEventListener('click', seekVideo);
       progressContainer.addEventListener('mousemove', showProgressHover);
       progressContainer.addEventListener('mouseleave', hideProgressHover);
@@ -882,15 +693,11 @@
           case 'ArrowRight':
             if (!isLive && !isNaN(player.duration())) {
               player.currentTime(Math.min(player.currentTime() + 10, player.duration()));
-              isLive = (player.duration() - player.currentTime()) < 10;
-              updateLiveIndicator();
             }
             break;
           case 'ArrowLeft':
             if (!isNaN(player.duration())) {
               player.currentTime(Math.max(player.currentTime() - 10, 0));
-              isLive = false;
-              updateLiveIndicator();
             }
             break;
           case 'ArrowUp':
@@ -917,7 +724,6 @@
         if (player) player.dispose();
       });
 
-      // Start by showing the loading overlay, then initialize player
       showLoading();
       initPlayer(streamUrl);
     });
