@@ -59,7 +59,8 @@
     body {
       background-color: var(--darker-bg);
       color: var(--light-text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -434,30 +435,29 @@
       let controlsTimeout;
       let currentQuality = 'auto';
 
-      // Use your desired stream URL.
-      // Note: If this stream does not provide multiple quality levels,
-      // quality menu may not show representations.
+      // Stream URL; for testing quality, a stream with ABR support is recommended.
       const streamUrl = 'https://spt-sonykal-1-us.lg.wurl.tv/playlist.m3u8';
-      // For testing quality selection, you can use:
+      // For testing, you may uncomment the following line:
       // const streamUrl = 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8';
 
-      // Add qualityBtn click event to toggle quality menu visibility
-      qualityBtn.addEventListener('click', () => {
+      // Quality button: Toggle quality menu, and prevent propagation
+      qualityBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         qualityMenu.classList.toggle('active');
       });
-      // Optional: Hide quality menu when clicking outside
+      // Hide quality menu when clicking outside of it and the quality button
       document.addEventListener('click', (e) => {
         if (!qualityMenu.contains(e.target) && e.target !== qualityBtn) {
           qualityMenu.classList.remove('active');
         }
       });
 
-      // Create or recreate the video element
+      // Create/Recreate video element
       function resetVideoElement() {
         videoWrapper.innerHTML = '<video id="videoPlayer" class="video-js vjs-fluid" preload="auto" playsinline></video>';
       }
 
-      // Initialize Video.js player with the given URL
+      // Initialize Video.js player with given URL
       function initPlayer(url) {
         if (player) {
           player.dispose();
@@ -606,7 +606,8 @@
         }
 
         document.querySelectorAll('.quality-option').forEach(option => {
-          option.addEventListener('click', function() {
+          option.addEventListener('click', function(e) {
+            e.stopPropagation();
             const index = parseInt(this.getAttribute('data-index'));
             const quality = this.getAttribute('data-quality');
             changeQuality(index, quality);
@@ -829,7 +830,8 @@
       });
       playerContainer.addEventListener('mousemove', resetControlsTimer);
       playerContainer.addEventListener('click', (e) => {
-        if (e.target === playerContainer || e.target.id === 'videoPlayer') {
+        // Avoid toggling play if quality menu button was clicked
+        if (e.target === playerContainer || e.target.id === 'videoPlayer' || e.target.classList.contains('vjs-tech')) {
           togglePlay();
         }
       });
