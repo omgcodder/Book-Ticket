@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Premium Live Stream Player</title>
-  <!-- Import Video.js library and CSS -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.20.3/video-js.min.css" rel="stylesheet" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.20.3/video.min.js"></script>
-  <!-- Import Video.js HLS plugin -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.15.0/videojs-contrib-hls.min.js"></script>
+  <title>AniVortex Live Stream</title>
+  <!-- Import Video.js CSS and JS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.21.1/video-js.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/7.21.1/video.min.js"></script>
+  <!-- Import Video.js HTTP streaming plugin (VHS) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-http-streaming/2.16.2/videojs-http-streaming.min.js"></script>
   <style>
     :root {
       --primary-color: #3a86ff;
@@ -75,7 +75,6 @@
       width: 100%;
     }
     .player-container {
-      aspect-ratio: 16/9;
       position: relative;
       background-color: #000;
       border-radius: 8px;
@@ -97,7 +96,7 @@
       height: 100%;
       background-color: #000;
     }
-    /* Hide Video.js controls, we'll use our custom controls */
+    /* Hide Video.js default controls; we'll use our custom controls */
     .vjs-control-bar {
       display: none !important;
     }
@@ -276,43 +275,63 @@
       border-radius: 50%;
       animation: spin 2s linear infinite;
     }
+    .error-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 25;
+      text-align: center;
+      padding: 2rem;
+    }
+    .error-icon {
+      color: var(--accent-color);
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    .error-message {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .retry-button {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0.5rem 1.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .retry-button:hover {
+      background: #2a75ff;
+    }
     @keyframes spin {
-      0% {
-        transform: rotate(0deg);
-      }
-      100% {
-        transform: rotate(360deg);
-      }
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
     @keyframes blink {
-      0%,
-      100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.3;
-      }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
     .hidden {
       display: none !important;
     }
     @media (max-width: 1024px) {
-      .stream-container {
-        grid-template-columns: 1fr;
-      }
+      .stream-container { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
-      main {
-        padding: 1rem;
-      }
-      header {
-        padding: 1rem;
-      }
+      main { padding: 1rem; }
+      header { padding: 1rem; }
     }
     @media (max-width: 480px) {
-      .logo span {
-        display: none;
-      }
+      .logo span { display: none; }
     }
   </style>
 </head>
@@ -321,15 +340,17 @@
     <div class="stream-container">
       <div class="player-section">
         <div class="player-container" id="playerContainer">
-          <video 
-            id="videoPlayer" 
-            class="video-js vjs-fluid vjs-big-play-centered" 
-            controls 
-            preload="auto"
-            data-setup='{}'>
-          </video>
+          <!-- The video element is created here. We will recreate it on reinitialization -->
+          <div id="videoWrapper">
+            <video id="videoPlayer" class="video-js vjs-fluid" preload="auto"></video>
+          </div>
           <div class="loading-overlay" id="loadingOverlay">
             <div class="spinner"></div>
+          </div>
+          <div class="error-overlay hidden" id="errorOverlay">
+            <div class="error-icon">⚠️</div>
+            <div class="error-message" id="errorMessage">Unable to load stream</div>
+            <button class="retry-button" id="retryButton">Retry</button>
           </div>
           <div class="controls-container" id="controlsContainer">
             <div class="controls">
@@ -389,6 +410,7 @@
     document.addEventListener('DOMContentLoaded', function () {
       // DOM Elements
       const playerContainer = document.getElementById('playerContainer');
+      const videoWrapper = document.getElementById('videoWrapper');
       const controlsContainer = document.getElementById('controlsContainer');
       const playPauseBtn = document.getElementById('playPauseBtn');
       const volumeBtn = document.getElementById('volumeBtn');
@@ -402,6 +424,9 @@
       const progressHover = document.getElementById('progressHover');
       const loadingOverlay = document.getElementById('loadingOverlay');
       const liveIndicator = document.getElementById('liveIndicator');
+      const errorOverlay = document.getElementById('errorOverlay');
+      const errorMessage = document.getElementById('errorMessage');
+      const retryButton = document.getElementById('retryButton');
 
       // State variables
       let isPlaying = false;
@@ -411,24 +436,46 @@
       let currentQuality = 'auto';
       let player = null;
       let controlsTimeout;
-      
-      // Sample HLS stream URL - Replace with your actual stream URL
-      const streamUrl = 'https://aajtakhdlive-amd.akamaized.net/hls/live/2014415/aajtakhd/aajtakhdlive/live_234p/chunks.m3u8';
+      let streamUrl = 'https://spt-sonykal-1-us.lg.wurl.tv/playlist.m3u8';
 
-      // Initialize Video.js player
-      initPlayer(streamUrl);
+      // Backup streams to try if the main one fails
+      const backupStreamUrls = [
+        'https://fcc3ddae59ed.us-west-2.playback.live-video.net/api/video/v1/us-west-2.893648527354.channel.DmumNckWFTqz.m3u8',
+        'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+        'https://cdnapi.kaltura.com/p/2503451/sp/250345100/playManifest/entryId/1_gb6tjmle/protocol/https/format/applehttp/a.m3u8'
+      ];
+      let currentStreamIndex = 0;
 
+      // Create or recreate the video element (to avoid invalid element errors)
+      function resetVideoElement() {
+        videoWrapper.innerHTML = '<video id="videoPlayer" class="video-js vjs-fluid" preload="auto"></video>';
+      }
+
+      // Initialize Video.js player with a given URL
       function initPlayer(url) {
-        // Configure Video.js options
+        if (player) {
+          player.dispose();
+          player = null;
+        }
+        // Recreate the video element before initializing
+        resetVideoElement();
+        hideError();
+        showLoading();
+
+        const videoEl = document.getElementById('videoPlayer');
         const options = {
           controls: false,
           autoplay: true,
           preload: 'auto',
           fluid: true,
           liveui: true,
+          responsive: true,
           html5: {
-            hls: {
-              overrideNative: true
+            vhs: {
+              overrideNative: true,
+              enableLowInitialPlaylist: true,
+              limitRenditionByPlayerDimensions: true,
+              useBandwidthFromLocalStorage: true
             },
             nativeAudioTracks: false,
             nativeVideoTracks: false
@@ -439,95 +486,199 @@
           }]
         };
 
-        // Initialize Video.js player
-        player = videojs('videoPlayer', options, function() {
-          console.log('Player initialized');
+        // Initialize Video.js with the element reference
+        player = videojs(videoEl, options, function() {
+          console.log('Player initialized with stream:', url);
+
+          // Timeout to detect loading issues
+          const loadingTimeout = setTimeout(() => {
+            if (!isPlaying) {
+              handleStreamError('Stream is taking too long to load. Trying alternative stream...');
+            }
+          }, 15000);
+
           this.on('loadedmetadata', function() {
+            console.log('Stream metadata loaded');
+            clearTimeout(loadingTimeout);
             checkIfLive();
-            hideLoading();
           });
-          this.on('waiting', showLoading);
+
+          this.on('waiting', function() {
+            console.log('Stream is buffering');
+            showLoading();
+          });
+
           this.on('playing', function() {
+            console.log('Stream is playing');
             hideLoading();
             isPlaying = true;
             updatePlayPauseButton();
+            clearTimeout(loadingTimeout);
           });
+
           this.on('pause', function() {
             isPlaying = false;
             updatePlayPauseButton();
           });
+
           this.on('timeupdate', function() {
             updateProgressBar();
             checkIfLive();
           });
+
           this.on('volumechange', function() {
             isMuted = this.muted();
             volume = this.volume();
             updateVolumeButton();
             updateVolumeSlider();
           });
+
+          this.on('error', function(e) {
+            console.error('Video.js error:', this.error());
+            handleStreamError('Stream error occurred. Trying alternative stream...');
+          });
+
           // Set initial volume
           this.volume(volume);
           updateVolumeSlider();
         });
 
-        // Add quality menu options once the player is ready
+        // Populate quality menu after a short delay
         player.ready(function() {
-          populateQualityMenu();
+          setTimeout(() => {
+            populateQualityMenu();
+          }, 3000);
         });
       }
 
+      function handleStreamError(msg) {
+        console.error(msg);
+        currentStreamIndex++;
+        if (currentStreamIndex < backupStreamUrls.length) {
+          streamUrl = backupStreamUrls[currentStreamIndex];
+          console.log('Trying alternate stream:', streamUrl);
+          initPlayer(streamUrl);
+        } else {
+          showError('Unable to load any stream. Please check your connection and try again.');
+        }
+      }
+
+      function showError(msg) {
+        errorMessage.textContent = msg;
+        errorOverlay.classList.remove('hidden');
+        hideLoading();
+      }
+
+      function hideError() {
+        errorOverlay.classList.add('hidden');
+      }
+
       function populateQualityMenu() {
-        // Clear existing menu items
         qualityMenu.innerHTML = '';
-        
-        // Add auto option
+
+        // Auto quality option
         const autoOption = document.createElement('div');
         autoOption.className = 'quality-option active';
         autoOption.setAttribute('data-quality', 'auto');
+        autoOption.setAttribute('data-index', '-1');
         autoOption.textContent = 'Auto';
         qualityMenu.appendChild(autoOption);
-        
-        // Add quality options - these would typically be pulled from the available HLS streams
-        // For now we'll add some common qualities as placeholders
-        const qualities = [
-          { height: 1080, bitrate: 5800000 },
-          { height: 720, bitrate: 2800000 },
-          { height: 480, bitrate: 1400000 },
-          { height: 360, bitrate: 800000 }
-        ];
-        
-        qualities.forEach((quality) => {
-          const option = document.createElement('div');
-          option.className = 'quality-option';
-          option.setAttribute('data-quality', `${quality.height}p`);
-          option.textContent = `${quality.height}p`;
-          qualityMenu.appendChild(option);
-        });
-        
-        // Add event listeners to quality options
+
+        try {
+          if (player && player.tech && player.tech() && player.tech().vhs) {
+            const tech = player.tech();
+            if (tech.vhs && tech.vhs.representations) {
+              const representations = tech.vhs.representations();
+              if (representations && representations.length > 0) {
+                console.log('Found', representations.length, 'quality levels');
+                representations.forEach((rep, index) => {
+                  const height = rep.height || Math.round(rep.bandwidth / 10000);
+                  const option = document.createElement('div');
+                  option.className = 'quality-option';
+                  option.setAttribute('data-quality', `${height}p`);
+                  option.setAttribute('data-index', index.toString());
+                  option.textContent = `${height}p`;
+                  qualityMenu.appendChild(option);
+                });
+              } else {
+                console.log('No quality representations found, using fallback options');
+                addFallbackQualityOptions();
+              }
+            } else {
+              console.log('VHS representations not available, using fallback options');
+              addFallbackQualityOptions();
+            }
+          } else {
+            console.log('Tech or VHS not available, using fallback options');
+            addFallbackQualityOptions();
+          }
+        } catch (err) {
+          console.error('Error populating quality menu:', err);
+          addFallbackQualityOptions();
+        }
+
+        // Add event listeners for quality options
         document.querySelectorAll('.quality-option').forEach(option => {
           option.addEventListener('click', function() {
-            // In a real implementation, this would change the HLS quality level
-            // For this example, we'll just update the UI
+            const index = parseInt(this.getAttribute('data-index'));
             const quality = this.getAttribute('data-quality');
-            currentQuality = quality;
-            
-            // Update active class
-            document.querySelectorAll('.quality-option').forEach(opt => {
-              opt.classList.remove('active');
-            });
-            this.classList.add('active');
-            
+            changeQuality(index, quality);
             qualityMenu.classList.remove('active');
           });
         });
       }
 
+      function addFallbackQualityOptions() {
+        const qualities = [
+          { height: 1080, index: 0 },
+          { height: 720, index: 1 },
+          { height: 480, index: 2 },
+          { height: 360, index: 3 }
+        ];
+        qualities.forEach(q => {
+          const option = document.createElement('div');
+          option.className = 'quality-option';
+          option.setAttribute('data-quality', `${q.height}p`);
+          option.setAttribute('data-index', q.index.toString());
+          option.textContent = `${q.height}p`;
+          qualityMenu.appendChild(option);
+        });
+      }
+
+      function changeQuality(index, quality) {
+        if (!player || !player.tech || !player.tech()) return;
+        try {
+          const tech = player.tech();
+          currentQuality = quality;
+          if (index === -1) {
+            if (tech.vhs && tech.vhs.representations) {
+              tech.vhs.representations().forEach(rep => rep.enabled(true));
+              console.log('Set to auto quality');
+            }
+          } else if (tech.vhs && tech.vhs.representations) {
+            const representations = tech.vhs.representations();
+            representations.forEach((rep, idx) => {
+              rep.enabled(idx === index);
+            });
+            console.log('Set quality to:', quality);
+          }
+          document.querySelectorAll('.quality-option').forEach(opt => {
+            opt.classList.remove('active');
+          });
+          const selected = document.querySelector(`.quality-option[data-index="${index}"]`);
+          if (selected) selected.classList.add('active');
+        } catch (err) {
+          console.error('Error changing quality:', err);
+        }
+      }
+
       function togglePlay() {
         if (player) {
           if (player.paused()) {
-            player.play();
+            player.play().catch(err => {
+              console.error('Error playing video:', err);
+              showError('Failed to play video. Please try again.');
+            });
           } else {
             player.pause();
           }
@@ -558,7 +709,7 @@
       }
 
       function updateVolumeButton() {
-        if (isMuted || player.volume() === 0) {
+        if (isMuted || (player && player.volume() === 0)) {
           volumeBtn.innerHTML = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -566,7 +717,7 @@
               <line x1="23" y1="9" x2="17" y2="15"></line>
               <line x1="17" y1="9" x2="23" y2="15"></line>
             </svg>`;
-        } else if (player.volume() < 0.5) {
+        } else if (player && player.volume() < 0.5) {
           volumeBtn.innerHTML = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -613,19 +764,57 @@
       }
 
       function updateProgressBar() {
-        if (player && !isLive && !isNaN(player.duration())) {
-          const percentage = (player.currentTime() / player.duration()) * 100;
-          progressBar.style.width = percentage + '%';
-        }
+        if (!player || isLive || isNaN(player.duration())) return;
+        const percentage = (player.currentTime() / player.duration()) * 100;
+        progressBar.style.width = percentage + '%';
       }
 
       function seekVideo(e) {
-        if (isLive || !player) return;
-        
+        if (isLive || !player || isNaN(player.duration())) return;
         const rect = progressContainer.getBoundingClientRect();
-        const pos = (e.clientX - rect.left) / rect.width;
-        player.currentTime(pos * player.duration());
-        updateProgressBar();
+        const position = (e.clientX - rect.left) / rect.width;
+        const seekTime = player.duration() * position;
+        player.currentTime(seekTime);
+        progressBar.style.width = (position * 100) + '%';
+        isLive = false;
+        updateLiveIndicator();
+      }
+
+      function showProgressHover(e) {
+        if (isLive || !player || isNaN(player.duration())) return;
+        const rect = progressContainer.getBoundingClientRect();
+        const position = (e.clientX - rect.left) / rect.width;
+        progressHover.style.width = (position * 100) + '%';
+        progressHover.style.transform = 'translateX(0)';
+      }
+
+      function hideProgressHover() {
+        progressHover.style.transform = 'translateX(-100%)';
+      }
+
+      function checkIfLive() {
+        if (!player || isNaN(player.duration())) return;
+        const liveThreshold = 10;
+        const currentTime = player.currentTime();
+        const duration = player.duration();
+        isLive = (duration - currentTime) < liveThreshold;
+        updateLiveIndicator();
+      }
+
+      function updateLiveIndicator() {
+        if (isLive) {
+          liveIndicator.classList.add('active');
+        } else {
+          liveIndicator.classList.remove('active');
+        }
+      }
+
+      function goToLive() {
+        if (!isLive && player && !isNaN(player.duration())) {
+          player.currentTime(player.duration());
+          isLive = true;
+          updateLiveIndicator();
+        }
       }
 
       function showLoading() {
@@ -636,88 +825,101 @@
         loadingOverlay.classList.add('hidden');
       }
 
-      // Video.js has better live detection
-      function checkIfLive() {
-        if (player) {
-          // Check if the stream is live using Video.js
-          if (player.duration() === Infinity || (player.liveTracker && player.liveTracker.isLive())) {
-            isLive = true;
-            liveIndicator.classList.remove('hidden');
-            progressContainer.classList.add('hidden');
-          } else {
-            isLive = false;
-            liveIndicator.classList.add('hidden');
-            progressContainer.classList.remove('hidden');
-          }
-        }
-      }
-
-      // Jump to live edge
-      function goToLiveEdge() {
-        if (player && player.liveTracker) {
-          player.liveTracker.seekToLiveEdge();
-        }
-      }
-
-      // Hide controls when inactive
-      function showControls() {
+      function resetControlsTimer() {
+        if (controlsTimeout) clearTimeout(controlsTimeout);
         controlsContainer.classList.add('active');
-        clearTimeout(controlsTimeout);
-        controlsTimeout = setTimeout(function () {
-          if (isPlaying) {
-            controlsContainer.classList.remove('active');
-          }
+        controlsTimeout = setTimeout(() => {
+          if (isPlaying) controlsContainer.classList.remove('active');
         }, 3000);
       }
 
       // Event Listeners
       playPauseBtn.addEventListener('click', togglePlay);
       volumeBtn.addEventListener('click', toggleMute);
-      
-      qualityBtn.addEventListener('click', function () {
+      fullscreenBtn.addEventListener('click', toggleFullscreen);
+      qualityBtn.addEventListener('click', () => {
         qualityMenu.classList.toggle('active');
       });
-      
-      fullscreenBtn.addEventListener('click', toggleFullscreen);
-      
+      liveIndicator.addEventListener('click', goToLive);
+      retryButton.addEventListener('click', () => {
+        currentStreamIndex = 0;
+        streamUrl = backupStreamUrls[0];
+        hideError();
+        initPlayer(streamUrl);
+      });
+
       progressContainer.addEventListener('click', seekVideo);
-      
-      progressContainer.addEventListener('mousemove', function (e) {
-        if (isLive) return;
-        const rect = progressContainer.getBoundingClientRect();
-        const pos = (e.clientX - rect.left) / rect.width;
-        progressHover.style.width = (pos * 100) + '%';
-        progressHover.style.transform = 'translateX(0)';
-      });
-      
-      progressContainer.addEventListener('mouseleave', function () {
-        progressHover.style.transform = 'translateX(-100%)';
-      });
-      
-      volumeSlider.addEventListener('click', function (e) {
-        if (!player) return;
+      progressContainer.addEventListener('mousemove', showProgressHover);
+      progressContainer.addEventListener('mouseleave', hideProgressHover);
+      volumeSlider.addEventListener('click', (e) => {
         const rect = volumeSlider.getBoundingClientRect();
-        const pos = (e.clientX - rect.left) / rect.width;
-        player.volume(Math.max(0, Math.min(1, pos)));
+        const position = (e.clientX - rect.left) / rect.width;
+        if (player) {
+          player.volume(position);
+          player.muted(false);
+        }
       });
-      
-      liveIndicator.addEventListener('click', goToLiveEdge);
-      
-      document.addEventListener('fullscreenchange', function () {
+      playerContainer.addEventListener('mousemove', resetControlsTimer);
+      playerContainer.addEventListener('click', (e) => {
+        if (e.target === playerContainer || e.target.id === 'videoPlayer') {
+          togglePlay();
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        if (!player) return;
+        switch (e.key) {
+          case ' ':
+          case 'k':
+            togglePlay();
+            e.preventDefault();
+            break;
+          case 'm':
+            toggleMute();
+            break;
+          case 'f':
+            toggleFullscreen();
+            break;
+          case 'ArrowRight':
+            if (!isLive && !isNaN(player.duration())) {
+              player.currentTime(Math.min(player.currentTime() + 10, player.duration()));
+              isLive = (player.duration() - player.currentTime()) < 10;
+              updateLiveIndicator();
+            }
+            break;
+          case 'ArrowLeft':
+            if (!isNaN(player.duration())) {
+              player.currentTime(Math.max(player.currentTime() - 10, 0));
+              isLive = false;
+              updateLiveIndicator();
+            }
+            break;
+          case 'ArrowUp':
+            if (player.volume() < 1) {
+              player.volume(Math.min(player.volume() + 0.1, 1));
+              player.muted(false);
+            }
+            e.preventDefault();
+            break;
+          case 'ArrowDown':
+            if (player.volume() > 0) {
+              player.volume(Math.max(player.volume() - 0.1, 0));
+            }
+            e.preventDefault();
+            break;
+        }
+      });
+      document.addEventListener('fullscreenchange', function() {
         if (!document.fullscreenElement) {
           playerContainer.classList.remove('fullscreen');
         }
       });
-      
-      document.addEventListener('click', function (e) {
-        if (!qualityBtn.contains(e.target) && !qualityMenu.contains(e.target)) {
-          qualityMenu.classList.remove('active');
-        }
+      window.addEventListener('beforeunload', () => {
+        if (player) player.dispose();
       });
 
-      playerContainer.addEventListener('mousemove', showControls);
-      playerContainer.addEventListener('touchstart', showControls);
-      showControls();
+      // Start by showing the loading overlay, then initialize player
+      showLoading();
+      initPlayer(streamUrl);
     });
   </script>
 </body>
