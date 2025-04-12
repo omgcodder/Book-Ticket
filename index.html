@@ -50,7 +50,6 @@
       color: var(--primary-color);
       font-weight: 600;
     }
-
     * {
       margin: 0;
       padding: 0;
@@ -122,11 +121,13 @@
       z-index: 9999;
       border-radius: 0;
     }
-    .video-js {
+    /* Responsive Video element styling for cover-fit */
+    .video-js video {
+      object-fit: cover;
       width: 100%;
       height: 100%;
-      background-color: #000;
     }
+    /* Remove default Video.js control bar */
     .vjs-control-bar {
       display: none !important;
     }
@@ -157,13 +158,14 @@
       align-items: center;
       gap: 1rem;
     }
+    /* Enlarged touch-friendly buttons */
     .btn {
       background: none;
       border: none;
       color: #fff;
       cursor: pointer;
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       display: flex;
       justify-content: center;
@@ -384,6 +386,8 @@
                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
                   </svg>
                 </button>
+                <!-- Toggle button for Fit Mode -->
+                
                 <button class="btn" id="fullscreenBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -417,6 +421,7 @@
       const qualityBtn = document.getElementById('qualityBtn');
       const qualityMenu = document.getElementById('qualityMenu');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
+ 
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
       const progressHover = document.getElementById('progressHover');
@@ -434,11 +439,11 @@
       let player = null;
       let controlsTimeout;
       let currentQuality = 'auto';
+      // Default fit mode: cover. Can be toggled to 'contain'
+      let currentFitMode = 'cover';
 
       // Stream URL; for testing quality, a stream with ABR support is recommended.
       const streamUrl = 'https://spt-sonykal-1-us.lg.wurl.tv/playlist.m3u8';
-      // For testing, you may uncomment the following line:
-      // const streamUrl = 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8';
 
       // Quality button: Toggle quality menu, and prevent propagation
       qualityBtn.addEventListener('click', (e) => {
@@ -451,6 +456,8 @@
           qualityMenu.classList.remove('active');
         }
       });
+
+      
 
       // Create/Recreate video element
       function resetVideoElement() {
@@ -795,15 +802,17 @@
         loadingOverlay.classList.add('hidden');
       }
 
+      // Reset controls timer to show controls on interaction and auto-hide after 10 seconds.
       function resetControlsTimer() {
         if (controlsTimeout) clearTimeout(controlsTimeout);
         controlsContainer.classList.add('active');
         controlsTimeout = setTimeout(() => {
+          // यदि वीडियो चल रहा हो तो ही कंट्रोल्स छुपाएं।
           if (isPlaying) controlsContainer.classList.remove('active');
-        }, 3000);
+        }, 10000); // 10 सेकंड के बाद ऑटो-हाइड
       }
 
-      // Event Listeners
+      // Event Listeners for both mouse and touch events
       playPauseBtn.addEventListener('click', togglePlay);
       volumeBtn.addEventListener('click', toggleMute);
       fullscreenBtn.addEventListener('click', toggleFullscreen);
@@ -828,13 +837,17 @@
           player.muted(false);
         }
       });
+      // Touch and mouse events to reset controls timer
       playerContainer.addEventListener('mousemove', resetControlsTimer);
+      playerContainer.addEventListener('touchstart', resetControlsTimer);
+      
+      // Clicking on the player container toggles play; ensure it doesn't conflict with control buttons.
       playerContainer.addEventListener('click', (e) => {
-        // Avoid toggling play if quality menu button was clicked
         if (e.target === playerContainer || e.target.id === 'videoPlayer' || e.target.classList.contains('vjs-tech')) {
           togglePlay();
         }
       });
+      
       document.addEventListener('keydown', (e) => {
         if (!player) return;
         switch (e.key) {
@@ -874,11 +887,13 @@
             break;
         }
       });
+      
       document.addEventListener('fullscreenchange', function() {
         if (!document.fullscreenElement) {
           playerContainer.classList.remove('fullscreen');
         }
       });
+      
       window.addEventListener('beforeunload', () => {
         if (player) player.dispose();
       });
